@@ -6024,6 +6024,9 @@ async def admin_buy_subscription_execute(callback: types.CallbackQuery, db_user:
                     subscription.device_limit = settings.DEFAULT_DEVICE_LIMIT
                 if was_trial:
                     subscription.traffic_used_gb = 0.0
+                    from app.database.crud.subscription import move_off_trial_tariff
+
+                    await move_off_trial_tariff(db, subscription)
 
             from app.database.crud.transaction import create_transaction, emit_transaction_side_effects
 

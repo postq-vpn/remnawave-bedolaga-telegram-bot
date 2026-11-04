@@ -603,11 +603,13 @@ async def handle_simple_subscription_pay_with_balance(
             # Если текущая подписка была пробной, и мы обновляем её
             # нужно изменить статус подписки
             if was_trial:
+                from app.database.crud.subscription import move_off_trial_tariff
                 from app.database.models import SubscriptionStatus
 
                 # Переводим подписку из пробной в активную платную
                 subscription.status = SubscriptionStatus.ACTIVE.value
                 subscription.is_trial = False
+                await move_off_trial_tariff(db, subscription)
 
             await db.commit()
             if managed_purchase:
@@ -2779,11 +2781,13 @@ async def confirm_simple_subscription_purchase(
             # Если текущая подписка была пробной, и мы обновляем её
             # нужно изменить статус подписки
             if was_trial:
+                from app.database.crud.subscription import move_off_trial_tariff
                 from app.database.models import SubscriptionStatus
 
                 # Переводим подписку из пробной в активную платную
                 subscription.status = SubscriptionStatus.ACTIVE.value
                 subscription.is_trial = False
+                await move_off_trial_tariff(db, subscription)
 
             await db.commit()
             if managed_purchase:

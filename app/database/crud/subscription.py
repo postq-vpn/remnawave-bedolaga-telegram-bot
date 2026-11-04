@@ -207,6 +207,51 @@ def apply_trial_conversion_defaults(subscription: Subscription) -> None:
     subscription.autopay_enabled = settings.is_autopay_enabled_by_default()
 
 
+async def move_off_trial_tariff(db: AsyncSession, subscription: Subscription) -> None:
+    """Переводит сконвертированный триал с триал-тарифа на платный (классический режим).
+
+    Триал создаётся на тарифе с ``is_trial_available`` (обычно неактивном и с
+    урезанным трафиком), а классическая покупка меняет только флаги и лимиты —
+    ``tariff_id`` оставался триальным. Пока период оплачен, это незаметно, но
+    автопродление и синк берут лимиты тарифа, и платный пользователь получал
+    триальные 10 ГБ. Целевой тариф — единственный активный, не триальный и не
+    суточный; если таких несколько, выбрать однозначно нельзя — оставляем как есть.
+
+    В режиме тарифов тариф выбирает сам пользователь, туда не вмешиваемся.
+    """
+    if settings.is_tariffs_mode() or not subscription.tariff_id:
+        return
+
+    trial_tariff = await db.get(Tariff, subscription.tariff_id)
+    if trial_tariff is None or not trial_tariff.is_trial_available:
+        return
+
+    result = await db.execute(
+        select(Tariff.id).where(
+            Tariff.is_active.is_(True),
+            Tariff.is_trial_available.is_(False),
+            Tariff.is_daily.is_(False),
+        )
+    )
+    candidates = result.scalars().all()
+    if len(candidates) != 1:
+        logger.warning(
+            'Не удалось однозначно выбрать платный тариф для бывшего триала',
+            subscription_id=subscription.id,
+            trial_tariff_id=trial_tariff.id,
+            candidates=list(candidates),
+        )
+        return
+
+    subscription.tariff_id = candidates[0]
+    logger.info(
+        '📦 Бывший триал переведён на платный тариф',
+        subscription_id=subscription.id,
+        old_tariff_id=trial_tariff.id,
+        tariff_id=candidates[0],
+    )
+
+
 async def create_trial_subscription(
     db: AsyncSession,
     user_id: int,
