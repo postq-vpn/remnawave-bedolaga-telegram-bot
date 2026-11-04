@@ -626,6 +626,10 @@ async def _auto_extend_subscription(
         if was_trial and subscription.is_trial:
             subscription.is_trial = False
             subscription.status = 'active'
+            if not is_tariff_change:
+                from app.database.crud.subscription import move_off_trial_tariff
+
+                await move_off_trial_tariff(db, subscription)
         transaction = await create_transaction(
             db=db,
             user_id=user_id,

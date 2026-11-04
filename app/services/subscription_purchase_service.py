@@ -16,6 +16,7 @@ from app.database.crud.server_squad import (
 from app.database.crud.subscription import (
     add_subscription_servers,
     apply_trial_conversion_defaults,
+    move_off_trial_tariff,
     create_paid_subscription,
     should_carry_trial_remaining_days,
 )
@@ -1120,6 +1121,7 @@ class MiniAppSubscriptionPurchaseService:
                     # дефолт автоплатежа вешаем на флаг конверсии, иначе продление платной
                     # подписки затирало бы выбор пользователя.
                     apply_trial_conversion_defaults(subscription)
+                    await move_off_trial_tariff(db, subscription)
                 subscription.status = SubscriptionStatus.ACTIVE.value
                 subscription.traffic_limit_gb = pricing.selection.traffic_value
                 subscription.device_limit = pricing.selection.devices
