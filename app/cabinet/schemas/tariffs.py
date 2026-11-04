@@ -164,7 +164,8 @@ class TariffCreateRequest(BaseModel):
     traffic_limit_gb: int = Field(0, ge=0, description='0 = unlimited')
     device_limit: int = Field(1, ge=1)
     device_price_kopeks: int | None = Field(None, ge=0)
-    max_device_limit: int | None = Field(None, ge=1)
+    # 0 = без лимита докупки (хранится как None)
+    max_device_limit: int | None = Field(None, ge=0, description='0 = unlimited')
     tier_level: int = Field(1, ge=1, le=10)
     period_prices: list[PeriodPrice] = Field(default_factory=list)
     # Выделение необязательно: кабинет шлёт 0, когда оператор ничего не отметил
@@ -222,7 +223,8 @@ class TariffUpdateRequest(BaseModel):
     traffic_limit_gb: int | None = Field(None, ge=0)
     device_limit: int | None = Field(None, ge=1)
     device_price_kopeks: int | None = Field(None, ge=0)
-    max_device_limit: int | None = Field(None, ge=1)
+    # 0 снимает лимит докупки: None здесь означало бы «поле не передано».
+    max_device_limit: int | None = Field(None, ge=0)
     tier_level: int | None = Field(None, ge=1, le=10)
     display_order: int | None = Field(None, ge=0)
     period_prices: list[PeriodPrice] | None = None

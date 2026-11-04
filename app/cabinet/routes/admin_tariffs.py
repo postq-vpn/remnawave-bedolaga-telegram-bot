@@ -315,7 +315,7 @@ async def create_new_tariff(
         traffic_limit_gb=request.traffic_limit_gb,
         device_limit=request.device_limit,
         device_price_kopeks=request.device_price_kopeks,
-        max_device_limit=request.max_device_limit,
+        max_device_limit=request.max_device_limit or None,
         tier_level=request.tier_level,
         period_prices=period_prices_dict,
         highlight_period_days=request.highlight_period_days or None,
@@ -399,8 +399,9 @@ async def update_existing_tariff(
         updates['device_limit'] = request.device_limit
     if request.device_price_kopeks is not None:
         updates['device_price_kopeks'] = request.device_price_kopeks
-    if request.max_device_limit is not None:
-        updates['max_device_limit'] = request.max_device_limit
+    # 0 снимает лимит докупки: пустое поле означает «не трогать», а не «снять».
+    if 'max_device_limit' in request.model_fields_set:
+        updates['max_device_limit'] = request.max_device_limit or None
     if request.tier_level is not None:
         updates['tier_level'] = request.tier_level
     if request.display_order is not None:
