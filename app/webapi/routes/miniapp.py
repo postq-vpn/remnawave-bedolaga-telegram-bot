@@ -5207,7 +5207,10 @@ async def _build_subscription_settings(
     if max_devices_setting is not None:
         max_devices = max(max_devices_setting, current_device_limit, default_device_limit)
     else:
-        max_devices = max(current_device_limit, default_device_limit) + 10
+        # MAX_DEVICES_LIMIT=0 означает «без лимита» — используем тот же
+        # практический потолок 100, а не узкое окно +10 (тот же баг, что и
+        # в subscription_purchase_service.py._build_devices_config).
+        max_devices = max(current_device_limit, default_device_limit, 100)
 
     discounted_single_device, _ = apply_percentage_discount(
         base_device_price,

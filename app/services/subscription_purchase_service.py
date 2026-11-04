@@ -611,7 +611,11 @@ class MiniAppSubscriptionPurchaseService:
         if max_devices_setting is not None:
             maximum = max(max_devices_setting, default_devices)
         else:
-            maximum = max(default_devices, settings.DEFAULT_DEVICE_LIMIT) + 10
+            # MAX_DEVICES_LIMIT=0 означает «без лимита» (см. конвенцию в
+            # keyboards/inline.py и др.) — используем тот же практический
+            # потолок 100, а не узкое окно default+10 (баг: срезало всех
+            # пользователей на default_devices+10 устройств).
+            maximum = max(default_devices, settings.DEFAULT_DEVICE_LIMIT, 100)
 
         return PurchaseDevicesConfig(
             minimum=settings.DEFAULT_DEVICE_LIMIT,
