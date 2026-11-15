@@ -38,6 +38,7 @@ from app.database.models import Subscription, TransactionType, User
 from app.services.panel_sync import should_create_panel_account
 from app.services.subscription_service import SubscriptionService
 from app.services.user_cart_service import user_cart_service
+from app.utils.client_app_version import describe_device_client
 
 from ...dependencies import get_cabinet_db, get_current_cabinet_user
 from ...schemas.subscription import DevicePurchaseRequest
@@ -1014,6 +1015,10 @@ async def get_devices(
                         # Локальное имя, заданное юзером. None — алиаса нет,
                         # фронт фоллбэчит на platform/device_model.
                         'local_name': aliases.get(hwid) or None,
+                        'user_agent': device.get('userAgent') or None,
+                        'os_version': device.get('osVersion') or None,
+                        # app_name / app_version / min_app_version / app_outdated / update_url
+                        **describe_device_client(device),
                     }
                 )
 

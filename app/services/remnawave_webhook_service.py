@@ -2024,6 +2024,17 @@ class RemnaWaveWebhookService:
             subscription=subscription,
         )
 
+        # Новое устройство сразу пришло со старым Happ — предупредить сейчас,
+        # не дожидаясь суточного обхода.
+        device_obj = data.get('hwidUserDevice')
+        if isinstance(device_obj, dict):
+            try:
+                from app.services.client_version_notifier import notify_outdated_devices
+
+                await notify_outdated_devices(self.bot, user, [device_obj])
+            except Exception:
+                logger.exception('Webhook: client-outdated check failed', user_id=user.id)
+
     async def _handle_device_deleted(
         self, db: AsyncSession, user: User, subscription: Subscription | None, data: dict
     ) -> None:

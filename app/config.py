@@ -1305,6 +1305,25 @@ class Settings(BaseSettings):
     HAPP_DOWNLOAD_LINK_MACOS: str | None = None
     HAPP_DOWNLOAD_LINK_WINDOWS: str | None = None
     HAPP_DOWNLOAD_LINK_PC: str | None = None
+    # Минимальная версия Happ по платформам (например, 6.4.0). Устройства с более
+    # старой версией в User-Agent получают в кабинете предупреждение «обновите
+    # приложение». HAPP_MIN_VERSION — для всех платформ, HAPP_MIN_VERSION_<платформа>
+    # переопределяет её. Пусто везде — проверка выключена.
+    HAPP_MIN_VERSION: str | None = '5.8.1'
+    HAPP_MIN_VERSION_IOS: str | None = None
+    HAPP_MIN_VERSION_ANDROID: str | None = None
+    HAPP_MIN_VERSION_MACOS: str | None = None
+    HAPP_MIN_VERSION_WINDOWS: str | None = None
+    HAPP_MIN_VERSION_LINUX: str | None = None
+    # Предупреждаем только по устройствам, обновлявшим подписку за столько дней. 0 — без ограничения.
+    HAPP_OUTDATED_ACTIVE_DAYS: int = 30
+    # Telegram-уведомление «обновите Happ»: сразу при подключении нового
+    # устройства со старой версией и раз в сутки обходом всех устройств.
+    HAPP_OUTDATED_NOTIFY_ENABLED: bool = True
+    # Повторное напоминание про то же устройство и ту же версию — не чаще, чем раз в N дней.
+    HAPP_OUTDATED_REMIND_DAYS: int = 7
+    # Статья «как сменить регион App Store» — кнопка в уведомлении для iPhone/Mac. Пусто — без кнопки.
+    HAPP_APP_STORE_REGION_HELP_URL: str | None = 'https://postq.space/help/app-store-region'
     # У INCY есть свой формат шифрованных ссылок (incy://crypt1/...) — без него ссылка
     # подписки уезжает в открытом виде, в отличие от happ-cryptolink. Выключатель на
     # случай ротации ключа INCY: тогда кнопки вернутся к обычным incy://import/...
@@ -3760,6 +3779,17 @@ class Settings(BaseSettings):
         }
         link = links.get(platform_key)
         return link or None
+
+    def get_happ_min_version(self, platform: str) -> str | None:
+        versions = {
+            'ios': self.HAPP_MIN_VERSION_IOS,
+            'android': self.HAPP_MIN_VERSION_ANDROID,
+            'macos': self.HAPP_MIN_VERSION_MACOS,
+            'windows': self.HAPP_MIN_VERSION_WINDOWS,
+            'linux': self.HAPP_MIN_VERSION_LINUX,
+        }
+        value = (versions.get(platform.lower()) or '').strip() or (self.HAPP_MIN_VERSION or '').strip()
+        return value or None
 
     def is_maintenance_mode(self) -> bool:
         return self.MAINTENANCE_MODE

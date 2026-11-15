@@ -477,6 +477,7 @@ class MonitoringService:
                 await self._cleanup_button_click_logs(db)
                 await self._cleanup_inactive_users(db)
                 await self._sync_with_remnawave(db)
+                await self._check_outdated_clients(db)
 
                 await self._log_monitoring_event(
                     db,
@@ -2876,6 +2877,15 @@ class MonitoringService:
 
         except Exception as e:
             logger.error('Ошибка очистки неактивных пользователей', error=e)
+
+    async def _check_outdated_clients(self, db: AsyncSession):
+        """Раз в сутки напомнить про устройства со старым Happ (замок суток — внутри)."""
+        try:
+            from app.services.client_version_notifier import sweep_outdated_clients
+
+            await sweep_outdated_clients(db, self.bot)
+        except Exception as error:
+            logger.warning('Ошибка обхода устаревших VPN-клиентов', error=str(error)[:200])
 
     async def _sync_with_remnawave(self, db: AsyncSession):
         try:
