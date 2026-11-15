@@ -90,3 +90,30 @@ def test_other_clients_ignored(min_ios):
     info = describe_device_client(_device('v2raytun/1.0/ios'), now=NOW)
     assert info['app_name'] == 'v2raytun'
     assert info['app_outdated'] is False
+
+
+def test_mobile_minimum_does_not_flag_desktop(monkeypatch):
+    """У десктопного Happ своя нумерация: минимум телефонов к нему не применяется."""
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION', None)
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION_IOS', '5.8.1')
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION_ANDROID', '5.8.1')
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION_MACOS', None)
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION_WINDOWS', None)
+    monkeypatch.setattr(settings, 'HAPP_OUTDATED_ACTIVE_DAYS', 30)
+    for ua, platform in (('Happ/1.2.0/macos/1', 'macOS'), ('Happ/1.2.0/windows/1', 'Windows')):
+        info = describe_device_client(_device(ua, platform=platform), now=NOW)
+        assert info['app_outdated'] is False
+        assert info['min_app_version'] is None
+    phone = describe_device_client(_device('Happ/5.7.2/ios/1'), now=NOW)
+    assert phone['app_outdated'] is True
+
+
+def test_desktop_minimum_applies_separately(monkeypatch):
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION', None)
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION_IOS', '5.8.1')
+    monkeypatch.setattr(settings, 'HAPP_MIN_VERSION_WINDOWS', '1.3.0')
+    monkeypatch.setattr(settings, 'HAPP_OUTDATED_ACTIVE_DAYS', 30)
+    old = describe_device_client(_device('Happ/1.2.0/windows/1', platform='Windows'), now=NOW)
+    new = describe_device_client(_device('Happ/1.3.0/windows/1', platform='Windows'), now=NOW)
+    assert (old['app_outdated'], old['min_app_version']) == (True, '1.3.0')
+    assert new['app_outdated'] is False

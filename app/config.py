@@ -1305,13 +1305,14 @@ class Settings(BaseSettings):
     HAPP_DOWNLOAD_LINK_MACOS: str | None = None
     HAPP_DOWNLOAD_LINK_WINDOWS: str | None = None
     HAPP_DOWNLOAD_LINK_PC: str | None = None
-    # Минимальная версия Happ по платформам (например, 6.4.0). Устройства с более
-    # старой версией в User-Agent получают в кабинете предупреждение «обновите
-    # приложение». HAPP_MIN_VERSION — для всех платформ, HAPP_MIN_VERSION_<платформа>
-    # переопределяет её. Пусто везде — проверка выключена.
-    HAPP_MIN_VERSION: str | None = '5.8.1'
-    HAPP_MIN_VERSION_IOS: str | None = None
-    HAPP_MIN_VERSION_ANDROID: str | None = None
+    # Минимальная версия Happ по платформам. Устройства с более старой версией в
+    # User-Agent получают предупреждение «обновите приложение» (кабинет и Telegram).
+    # У мобильного и десктопного Happ своя нумерация версий, поэтому минимум
+    # задаётся по платформе; HAPP_MIN_VERSION — запасной для платформ без своего
+    # значения, по умолчанию пуст: десктоп не проверяется, пока не задан явно.
+    HAPP_MIN_VERSION: str | None = None
+    HAPP_MIN_VERSION_IOS: str | None = '5.8.1'
+    HAPP_MIN_VERSION_ANDROID: str | None = '5.8.1'
     HAPP_MIN_VERSION_MACOS: str | None = None
     HAPP_MIN_VERSION_WINDOWS: str | None = None
     HAPP_MIN_VERSION_LINUX: str | None = None
