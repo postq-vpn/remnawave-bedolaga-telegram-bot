@@ -6432,6 +6432,12 @@ async def update_subscription_devices_endpoint(
     subscription.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(subscription)
+
+    # СБП-привязка Platega посчитана под старое число устройств, а сумму у
+    # Platega не изменить: закрываем, пользователь подключит заново.
+    from app.services.payment.platega import cancel_platega_recurring_if_devices_changed
+
+    await cancel_platega_recurring_if_devices_changed(db, subscription)
     try:
         await db.refresh(user)
     except Exception:  # pragma: no cover - defensive refresh safeguard

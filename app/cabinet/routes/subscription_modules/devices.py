@@ -343,11 +343,18 @@ async def purchase_devices_legacy(
     except Exception as e:
         logger.error('Failed to send admin notification for device purchase', error=e)
 
+    # The SBP binding was priced for the old device count (Platega can't change
+    # its amount): close it, the user re-connects at the new price.
+    from app.services.payment.platega import cancel_platega_recurring_if_devices_changed
+
+    sbp_recurring_cancelled = await cancel_platega_recurring_if_devices_changed(db, subscription)
+
     response: dict[str, Any] = {
         'message': 'Devices added successfully',
         'devices_added': request.devices,
         'new_device_limit': actual_new,
         'amount_paid_kopeks': total_price,
+        'sbp_recurring_cancelled': sbp_recurring_cancelled,
     }
 
     if devices_discount_percent > 0:
@@ -666,8 +673,15 @@ async def purchase_devices(
         except Exception as yconv_err:
             logger.debug('yandex_conv purchase hook failed (non-fatal)', user_id=user.id, error=str(yconv_err))
 
+        # The SBP binding was priced for the old device count (Platega can't
+        # change its amount): close it, the user re-connects at the new price.
+        from app.services.payment.platega import cancel_platega_recurring_if_devices_changed
+
+        sbp_recurring_cancelled = await cancel_platega_recurring_if_devices_changed(db, subscription)
+
         response: dict[str, Any] = {
             'success': True,
+            'sbp_recurring_cancelled': sbp_recurring_cancelled,
             'message': f'Добавлено {request.devices} устройств',
             'devices_added': request.devices,
             'new_device_limit': subscription.device_limit,
@@ -1457,6 +1471,11 @@ async def reduce_devices(
             detail='Не удалось обновить VPN-панель. Попробуйте позже.',
         )
 
+    # Fewer devices must not keep paying the old SBP amount: close the binding.
+    from app.services.payment.platega import cancel_platega_recurring_if_devices_changed
+
+    sbp_recurring_cancelled = await cancel_platega_recurring_if_devices_changed(db, subscription)
+
     logger.info(
         'User reduced device limit',
         user_id=user_id,
@@ -1472,4 +1491,5 @@ async def reduce_devices(
         'old_device_limit': old_device_limit,
         'new_device_limit': new_device_limit,
         'devices_removed': devices_removed_count,
+        'sbp_recurring_cancelled': sbp_recurring_cancelled,
     }

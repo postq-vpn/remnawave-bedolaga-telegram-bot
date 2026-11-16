@@ -708,6 +708,11 @@ class PlategaSubscription(Base):
     amount_kopeks = Column(Integer, nullable=False)
     currency = Column(String(10), nullable=False, default='RUB')
 
+    # Устройства, под которые посчитана amount_kopeks. Platega не умеет менять
+    # сумму подписки: при другом числе устройств привязку нужно отменить и
+    # создать заново. NULL — запись до появления колонки (не сверяется).
+    device_limit = Column(Integer, nullable=True)
+
     status = Column(String(20), nullable=False, default='PENDING')  # PENDING/ACTIVE/PAST_DUE/CANCELLED/FAILED
     redirect_url = Column(Text, nullable=True)
     next_charge_at = Column(AwareDateTime(), nullable=True)

@@ -783,6 +783,12 @@ async def execute_change_devices(
 
         await db.commit()
 
+        # СБП-привязка Platega посчитана под старое число устройств, а сумму у
+        # Platega не изменить: закрываем, пользователь подключит заново.
+        from app.services.payment.platega import cancel_platega_recurring_if_devices_changed
+
+        await cancel_platega_recurring_if_devices_changed(db, subscription)
+
         # Реактивируем подписку если она была DISABLED/EXPIRED (например, после LIMITED/EXPIRED в RemnaWave)
         from app.database.crud.subscription import reactivate_subscription
 
@@ -1794,6 +1800,12 @@ async def confirm_add_devices(callback: types.CallbackQuery, db_user: User, db: 
         subscription.device_limit = actual_new
         subscription.updated_at = datetime.now(UTC)
         await db.commit()
+
+        # СБП-привязка Platega посчитана под старое число устройств, а сумму у
+        # Platega не изменить: закрываем, пользователь подключит заново.
+        from app.services.payment.platega import cancel_platega_recurring_if_devices_changed
+
+        await cancel_platega_recurring_if_devices_changed(db, subscription)
 
         # Реактивируем подписку если она была DISABLED/EXPIRED (например, после LIMITED/EXPIRED в RemnaWave)
         from app.database.crud.subscription import reactivate_subscription

@@ -32,7 +32,7 @@ async def resolve_lava_purchase_product(product_id):
     return await _LavaRecurrentAgent()._resolve_lava_product(product_id)
 
 
-async def calculate_recurrent_purchase_terms(tariff, provider, device_limit, subscription=None):
+async def calculate_recurrent_purchase_terms(tariff, provider, device_limit, subscription=None, period_days=None):
     """The provider's real cadence and recurring price, without temporary discounts."""
     from app.config import settings
     from app.services.autopay_period import resolve_autopay_period_candidate
@@ -54,6 +54,19 @@ async def calculate_recurrent_purchase_terms(tariff, provider, device_limit, sub
         charge_days = resolve_product_charge_days(product)
         interval = str(product.get('period') or f'{charge_days}_days')
         lava_amount = _lava_amount_to_kopeks(product.get('price'))
+    elif period_days is not None:
+        # The buyer picked the period: charge exactly it, or refuse — never
+        # fall back to another cadence behind their back.
+        from app.services.platega_recurrent import RECURRENT_PERIOD_UNSUPPORTED, platega_supports_period
+
+        if (
+            provider != 'platega'
+            or tariff.is_daily
+            or resolve_autopay_period_candidate(period_days, tariff) is None
+            or not platega_supports_period(period_days)
+        ):
+            raise ValueError(RECURRENT_PERIOD_UNSUPPORTED)
+        interval, charge_days = resolve_platega_interval(period_days, False)
     else:
         period = (
             resolve_autopay_period_candidate(getattr(subscription, 'autopay_period_days', None), tariff)
@@ -129,8 +142,8 @@ async def _resolve_new_device_target(db, user, tariff, subscription_id, paramete
     return None
 
 
-def _recurrent_parameters(tariff_id, provider, selected_device_limit, subscription_id, channel):
-    return dict(
+def _recurrent_parameters(tariff_id, provider, selected_device_limit, subscription_id, channel, period_days=None):
+    parameters = dict(
         tariff_id=tariff_id,
         provider=provider,
         selected_device_limit=selected_device_limit,
@@ -138,15 +151,22 @@ def _recurrent_parameters(tariff_id, provider, selected_device_limit, subscripti
         channel=channel,
         kind='recurrent_devices',
     )
+    # Only when chosen: checkouts saved before the period existed keep their
+    # fingerprint and stay replayable.
+    if period_days is not None:
+        parameters['period_days'] = period_days
+    return parameters
 
 
 async def preview_recurrent_purchase(
-    db, *, user, tariff, provider, selected_device_limit, subscription_id=None, channel='cabinet'
+    db, *, user, tariff, provider, selected_device_limit, subscription_id=None, channel='cabinet', period_days=None
 ):
     from app.services.tariff_purchase_devices import resolve_purchase_device_selection
     from app.services.tariff_purchase_quote import save_purchase_quote
 
-    parameters = _recurrent_parameters(tariff.id, provider, selected_device_limit, subscription_id, channel)
+    parameters = _recurrent_parameters(
+        tariff.id, provider, selected_device_limit, subscription_id, channel, period_days
+    )
     recovery = await _resolve_new_device_target(db, user, tariff, subscription_id, parameters)
     if recovery is not None:
         parameters = recovery.parameters['request']
@@ -157,7 +177,9 @@ async def preview_recurrent_purchase(
             raise ValueError('checkout_closed')
         terms = recovery.parameters['terms']
     else:
-        terms = await calculate_recurrent_purchase_terms(tariff, provider, selection.effective_limit)
+        terms = await calculate_recurrent_purchase_terms(
+            tariff, provider, selection.effective_limit, period_days=period_days
+        )
     quote_id, expires_at = await save_purchase_quote(
         user.id, f'recurrent:{channel}', {'request': parameters, 'terms': terms}
     )
@@ -170,7 +192,17 @@ async def preview_recurrent_purchase(
 
 
 async def prepare_recurrent_device_purchase(
-    db, *, user, tariff, provider, selected_device_limit, quote_id, checkout_id, subscription_id=None, channel='cabinet'
+    db,
+    *,
+    user,
+    tariff,
+    provider,
+    selected_device_limit,
+    quote_id,
+    checkout_id,
+    subscription_id=None,
+    channel='cabinet',
+    period_days=None,
 ):
     """Atomically bind one checkout to its new unpaid row, never rewrite paid limits."""
     from uuid import UUID
@@ -186,7 +218,9 @@ async def prepare_recurrent_device_purchase(
     if selected_device_limit is None or quote_id is None or checkout_id is None:
         raise ValueError('device_consent_required')
     checkout_id, quote_id = str(UUID(str(checkout_id))), UUID(str(quote_id))
-    parameters = _recurrent_parameters(tariff.id, provider, selected_device_limit, subscription_id, channel)
+    parameters = _recurrent_parameters(
+        tariff.id, provider, selected_device_limit, subscription_id, channel, period_days
+    )
     fingerprint = purchase_fingerprint(parameters)
     user = await lock_user_for_update(db, user)
     intent = await db.scalar(
@@ -224,7 +258,9 @@ async def prepare_recurrent_device_purchase(
             except ValueError:
                 agreed = None  # An unchanged exact replay still survives quote expiry.
             if agreed is not None:
-                fresh_terms = await calculate_recurrent_purchase_terms(tariff, provider, selected_device_limit)
+                fresh_terms = await calculate_recurrent_purchase_terms(
+                    tariff, provider, selected_device_limit, period_days=parameters.get('period_days')
+                )
                 if agreed != {'request': parameters, 'terms': fresh_terms}:
                     raise ValueError('quote_changed')
                 terms = fresh_terms
@@ -232,7 +268,9 @@ async def prepare_recurrent_device_purchase(
     else:
         await _resolve_new_device_target(db, user, tariff, subscription_id)
         selection = resolve_purchase_device_selection(tariff, None, selected_device_limit)
-        terms = await calculate_recurrent_purchase_terms(tariff, provider, selection.effective_limit)
+        terms = await calculate_recurrent_purchase_terms(
+            tariff, provider, selection.effective_limit, period_days=period_days
+        )
         agreed = await load_purchase_quote(user.id, f'recurrent:{channel}', quote_id)
         if agreed != {'request': parameters, 'terms': terms}:
             raise ValueError('quote_changed')

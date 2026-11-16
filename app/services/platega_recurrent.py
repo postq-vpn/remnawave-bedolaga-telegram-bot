@@ -38,6 +38,18 @@ SUB_CANCELLED = 'SUBSCRIPTION_CANCELLED'
 SUB_FAILED = 'SUBSCRIPTION_FAILED'
 
 
+RECURRENT_PERIOD_UNSUPPORTED = 'Автосписание через СБП доступно для срока 1 месяц или 1 год'
+
+
+def platega_supports_period(period_days: int) -> bool:
+    """Platega charges exactly this period: a week, a month or a year.
+
+    Anything else (90, 180 days) has no Platega interval and would silently be
+    charged monthly at the monthly price — not what the buyer picked.
+    """
+    return period_days == 7 or 28 <= period_days <= 31 or 350 <= period_days <= 380
+
+
 def resolve_platega_interval(period_days: int, is_daily: bool) -> tuple[int, int]:
     """Возвращает (interval, charge_days) для подписки Platega.
 

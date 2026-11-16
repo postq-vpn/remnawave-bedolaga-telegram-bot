@@ -28,6 +28,7 @@ async def create_platega_subscription(
     redirect_url: str | None,
     platega_subscription_id: str | None,
     status: str = 'PENDING',
+    device_limit: int | None = None,
 ) -> PlategaSubscription:
     record = PlategaSubscription(
         user_id=user_id,
@@ -39,6 +40,7 @@ async def create_platega_subscription(
         redirect_url=redirect_url,
         platega_subscription_id=platega_subscription_id,
         status=status,
+        device_limit=device_limit,
     )
     db.add(record)
     await db.commit()

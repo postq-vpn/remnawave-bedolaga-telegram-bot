@@ -1965,6 +1965,12 @@ async def _auto_add_devices(
 
     await reactivate_subscription(db, subscription)
 
+    # СБП-привязка Platega посчитана под старое число устройств, а сумму у
+    # Platega не изменить: закрываем, пользователь подключит заново.
+    from app.services.payment.platega import cancel_platega_recurring_if_devices_changed
+
+    await cancel_platega_recurring_if_devices_changed(db, subscription)
+
     # Синхронизация с RemnaWave
     try:
         subscription_service = SubscriptionService()

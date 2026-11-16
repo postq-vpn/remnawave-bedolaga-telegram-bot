@@ -172,8 +172,12 @@ class PlategaPaymentMixin:
         user_id: int,
         subscription: Any,
         tariff: Any,
+        period_days: int | None = None,
     ) -> dict[str, Any]:
         """Создаёт рекуррентную СБП-подписку Platega, привязанную к тарифу подписки.
+
+        ``period_days`` — период, выбранный покупателем (1 месяц / 1 год): списания
+        идут ровно с ним. Согласованные условия покупки (котировка) имеют приоритет.
 
         Каденс списания выбирается по той же иерархии периодов, что и
         balance-autopay (см. ``monitoring_service._process_autopayments``):
@@ -222,12 +226,27 @@ class PlategaPaymentMixin:
         await cancel_lava_recurring_for_subscription_safe(db, subscription.id)
         await cancel_cashera_recurring_for_subscription_safe(db, subscription.id)
 
-        period_days = (
-            resolve_autopay_period_candidate(getattr(subscription, 'autopay_period_days', None), tariff)
-            or resolve_autopay_period_candidate(getattr(settings, 'DEFAULT_AUTOPAY_PERIOD_DAYS', 0), tariff)
-            or (tariff.get_shortest_period() if tariff else None)
-            or 30
-        )
+        # A quoted purchase already fixed its cadence; re-deriving it here would
+        # pick the default period and reject the buyer's own choice as changed.
+        agreed_terms = getattr(subscription, '_recurrent_purchase_terms', None)
+        if period_days is None and agreed_terms and agreed_terms.get('provider') == 'platega':
+            period_days = int(agreed_terms['charge_days'])
+        if period_days is not None:
+            from app.services.platega_recurrent import RECURRENT_PERIOD_UNSUPPORTED, platega_supports_period
+
+            if (
+                bool(getattr(tariff, 'is_daily', False))
+                or resolve_autopay_period_candidate(period_days, tariff) is None
+                or not platega_supports_period(period_days)
+            ):
+                raise ValueError(RECURRENT_PERIOD_UNSUPPORTED)
+        else:
+            period_days = (
+                resolve_autopay_period_candidate(getattr(subscription, 'autopay_period_days', None), tariff)
+                or resolve_autopay_period_candidate(getattr(settings, 'DEFAULT_AUTOPAY_PERIOD_DAYS', 0), tariff)
+                or (tariff.get_shortest_period() if tariff else None)
+                or 30
+            )
         is_daily = bool(getattr(tariff, 'is_daily', False))
         interval, charge_days = resolve_platega_interval(period_days, is_daily)
 
@@ -293,6 +312,7 @@ class PlategaPaymentMixin:
                 amount_kopeks=amount_kopeks,
                 redirect_url=redirect_url,
                 platega_subscription_id=platega_id,
+                device_limit=getattr(subscription, 'device_limit', None),
             )
         except IntegrityError:
             # Гонка конкурентного enable: оба запроса прошли идемпотентную
@@ -554,9 +574,22 @@ class PlategaPaymentMixin:
             # молча стирается и цикл продолжается вечно) и тут же повторяем
             # удалённую отмену.
             was_cancelled = record.status == 'CANCELLED'
+            # Число устройств сменилось мимо явной отмены (админка, смена тарифа,
+            # путь без хука): сумма привязки посчитана под старое число, а
+            # Platega её не меняет. Деньги этого списания уже взяты — продление
+            # засчитываем честно, но привязку закрываем, чтобы следующее
+            # списание не шло по устаревшей цене; пользователь подключит заново.
+            stale_devices = (
+                not was_cancelled
+                and record.device_limit is not None
+                and subscription.device_limit is not None
+                and record.device_limit != subscription.device_limit
+            )
 
             record.last_charge_external_id = charge_id
-            if not was_cancelled:
+            if stale_devices:
+                record.status = 'CANCELLED'
+            elif not was_cancelled:
                 record.status = 'ACTIVE'
             record.last_charge_at = datetime.now(UTC)
             record.charges_success += 1
@@ -601,7 +634,14 @@ class PlategaPaymentMixin:
                 description='СБП-автопродление Platega',
             )
 
-            if was_cancelled:
+            if stale_devices:
+                logger.warning(
+                    'СБП-привязка посчитана под другое число устройств — закрываю после списания',
+                    platega_subscription_id=platega_id,
+                    priced_device_limit=record.device_limit,
+                    device_limit=subscription.device_limit,
+                )
+            if was_cancelled or stale_devices:
                 logger.error(
                     'Platega списала по отменённой СБП-подписке — повторяю удалённую отмену',
                     platega_subscription_id=platega_id,
@@ -1156,6 +1196,7 @@ async def enable_platega_sbp_recurring(
     user_id: int,
     subscription: Any,
     tariff: Any,
+    period_days: int | None = None,
 ) -> dict[str, Any]:
     """Создать СБП-автопродление. Возвращает {local_id, platega_subscription_id, redirect_url, status}.
 
@@ -1165,7 +1206,7 @@ async def enable_platega_sbp_recurring(
     if not settings.is_platega_recurrent_enabled():
         raise RuntimeError('Platega recurrent is disabled')
     return await _PlategaSbpAgent().create_platega_sbp_subscription(
-        db, user_id=user_id, subscription=subscription, tariff=tariff
+        db, user_id=user_id, subscription=subscription, tariff=tariff, period_days=period_days
     )
 
 
@@ -1179,8 +1220,12 @@ async def purchase_tariff_with_sbp_recurring(
     quote_id=None,
     checkout_id=None,
     channel: str = 'cabinet',
+    period_days: int | None = None,
 ) -> dict[str, Any]:
     """Оформление подписки на тариф с оплатой через СБП-автопродление Platega.
+
+    ``period_days`` — срок, выбранный покупателем: 1 месяц или 1 год (Platega
+    списывает только ими). Без него — прежнее каденс-правило тарифа.
 
     Первое списание Platega = подтверждение привязки в банке, поэтому «купить
     с автооплатой» — это привязка + первый чардж, который продлит/оживит
@@ -1219,6 +1264,7 @@ async def purchase_tariff_with_sbp_recurring(
             checkout_id=checkout_id,
             subscription_id=subscription_id,
             channel=channel,
+            period_days=period_days,
         )
         result = await enable_platega_sbp_recurring(db, user_id=user.id, subscription=subscription, tariff=tariff)
         return {**result, 'subscription_id': subscription.id}
@@ -1257,7 +1303,13 @@ async def purchase_tariff_with_sbp_recurring(
     if subscription is None:
         subscription = await create_sbp_pending_subscription(db, user.id, tariff)
 
-    result = await enable_platega_sbp_recurring(db, user_id=user.id, subscription=subscription, tariff=tariff)
+    result = await enable_platega_sbp_recurring(
+        db,
+        user_id=user.id,
+        subscription=subscription,
+        tariff=tariff,
+        **({'period_days': period_days} if period_days is not None else {}),
+    )
     return {**result, 'subscription_id': subscription.id}
 
 
@@ -1359,3 +1411,48 @@ async def cancel_platega_recurring_for_subscription_safe(
             error=str(error),
             subscription_id=subscription_id,
         )
+
+
+async def cancel_platega_recurring_if_devices_changed(db: AsyncSession, subscription) -> bool:
+    """Закрывает СБП-привязку Platega, посчитанную под другое число устройств.
+
+    Сумма подписки Platega фиксируется при создании и не меняется через API,
+    поэтому после докупки или уменьшения устройств старая привязка списывала
+    бы старую сумму: недоплата при докупке, переплата клиента при уменьшении.
+    Вызывается сразу после смены ``device_limit`` на пользовательских путях;
+    пользователь подключает автосписание заново, уже с новой суммой.
+
+    Возвращает ``True``, если привязка была и закрыта. Как и прочие отмены —
+    best-effort и не бросает: сбой Platega не должен ломать покупку устройств
+    (локально запись закрывается, удалённую отмену повторит reconciler).
+    """
+    from app.database.crud import platega_subscription as sub_crud
+
+    try:
+        record = await sub_crud.get_active_platega_subscription_by_subscription(db, subscription.id)
+        if (
+            record is None
+            or record.device_limit is None
+            or subscription.device_limit is None
+            or record.device_limit == subscription.device_limit
+        ):
+            return False
+        priced_for = record.device_limit
+        await cancel_platega_recurring_for_subscription_safe(db, subscription.id)
+        still_active = await sub_crud.get_active_platega_subscription_by_subscription(db, subscription.id)
+        if still_active is not None:
+            return False
+        logger.info(
+            'СБП-автопродление закрыто: сменилось число устройств',
+            subscription_id=subscription.id,
+            priced_device_limit=priced_for,
+            device_limit=subscription.device_limit,
+        )
+        return True
+    except Exception as error:  # pragma: no cover - best-effort
+        logger.warning(
+            'Не удалось сверить СБП-привязку с числом устройств',
+            subscription_id=getattr(subscription, 'id', None),
+            error=str(error),
+        )
+        return False
