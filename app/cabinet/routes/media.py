@@ -7,6 +7,7 @@ import re
 import time
 
 import structlog
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BufferedInputFile
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from pydantic import BaseModel
@@ -25,7 +26,13 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix='/media', tags=['Cabinet Media'])
 
 ALLOWED_MEDIA_TYPES = {'photo', 'video', 'document'}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+# Bot API getFile reads files up to 20 MB back, so that is the ceiling for
+# anything we stage and later serve from /cabinet/media/{file_id}.
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+# Telegram refuses some photos/videos as such (a long screenshot, width+height
+# over 10000, a photo over 10 MB, an odd video codec). Those are staged as a
+# document instead of failing the user's upload.
+_MEDIA_REJECTED_AS_FILE = re.compile(r'PHOTO_|IMAGE_PROCESS_FAILED|VIDEO_|wrong (file|type)|too big', re.IGNORECASE)
 
 # Only these raster image types may be served INLINE from the cabinet origin.
 # Everything else — documents, SVG, HTML, XML, anything — is forced to download
@@ -229,30 +236,44 @@ async def upload_media(
 
     try:
         # Send with disable_notification to avoid pinging admins — this is just staging
-        if media_type_normalized == 'photo':
-            message = await bot.send_photo(
+        async def stage_document():
+            sent = await bot.send_document(
                 chat_id=target_chat_id,
                 message_thread_id=target_topic_id,
-                photo=upload,
+                document=BufferedInputFile(file_bytes, filename=file.filename or 'upload'),
                 disable_notification=True,
             )
-            media = message.photo[-1]
-        elif media_type_normalized == 'video':
-            message = await bot.send_video(
-                chat_id=target_chat_id,
-                message_thread_id=target_topic_id,
-                video=upload,
-                disable_notification=True,
+            return sent, sent.document
+
+        try:
+            if media_type_normalized == 'photo':
+                message = await bot.send_photo(
+                    chat_id=target_chat_id,
+                    message_thread_id=target_topic_id,
+                    photo=upload,
+                    disable_notification=True,
+                )
+                media = message.photo[-1]
+            elif media_type_normalized == 'video':
+                message = await bot.send_video(
+                    chat_id=target_chat_id,
+                    message_thread_id=target_topic_id,
+                    video=upload,
+                    disable_notification=True,
+                )
+                media = message.video
+            else:
+                message, media = await stage_document()
+        except TelegramBadRequest as rejected:
+            if media_type_normalized == 'document' or not _MEDIA_REJECTED_AS_FILE.search(str(rejected)):
+                raise
+            logger.info(
+                'Telegram refused the upload as media, staging it as a document',
+                media_type=media_type_normalized,
+                error=str(rejected),
             )
-            media = message.video
-        else:
-            message = await bot.send_document(
-                chat_id=target_chat_id,
-                message_thread_id=target_topic_id,
-                document=upload,
-                disable_notification=True,
-            )
-            media = message.document
+            message, media = await stage_document()
+            media_type_normalized = 'document'
 
         # Delete the staging message immediately — file_id persists after deletion
         try:
