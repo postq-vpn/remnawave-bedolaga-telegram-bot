@@ -114,8 +114,8 @@ DEFAULT_EMAIL_LAYOUT = """<!DOCTYPE html>
         .wrapper { background-color: #ffffff; }
         .container { width: 100%; max-width: 560px; }
         .header { padding: 40px 0 36px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        .logo { display: block; width: 154px; height: 31px; border: 0; }
-        .brand { font-size: 18px; line-height: 28px; font-weight: 700; letter-spacing: -0.2px; color: #212023; vertical-align: middle; }
+        .logo { display: block; width: 28px; height: 28px; border: 0; }
+        .brand { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.3px; color: #212023; vertical-align: middle; }
         .content { padding: 0 0 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 26px; color: #4d4d4f; }
         h1, h2 { margin: 0 0 16px; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.4px; color: #212023; }
         h3 { margin: 32px 0 8px; font-size: 18px; line-height: 24px; font-weight: 600; color: #212023; }
@@ -156,8 +156,6 @@ DEFAULT_EMAIL_LAYOUT = """<!DOCTYPE html>
         @media (prefers-color-scheme: dark) {
             body, .wrapper { background-color: #1a1a1c !important; }
             .content { color: #d3d2d3 !important; }
-            .logo-light { display: none !important; }
-            .logo-dark { display: block !important; max-height: none !important; }
             .brand, h1, h2, h3, strong, b, .amount, .code, code, .details .value { color: #f8f8f8 !important; }
             .details td, .details tr:last-child td, .footer { border-color: #373639 !important; }
             .highlight, .code-box { background-color: #2b2a2d !important; }
@@ -210,8 +208,10 @@ def layout_is_valid(layout_html: str) -> bool:
 # Логотип из кабинета (public/brand): PNG, потому что SVG в письмах режут.
 # Две версии — тёмная надпись для светлой темы и белая для тёмной; вторая
 # скрыта и показывается @media (prefers-color-scheme: dark) там, где он есть.
-LOGO_PATH = '/brand/email-logo.png'
-LOGO_DARK_PATH = '/brand/email-logo-dark.png'
+# Только знак: он розовый и читается на любом фоне. Название рядом — текстом,
+# его Gmail и другие клиенты сами перекрашивают в тёмной теме, а картинку нет
+# (тёмная надпись логотипа-картинки пропадала на тёмном фоне в Gmail на телефоне).
+LOGO_PATH = '/brand/email-mark.png'
 
 
 def _pick(texts: dict[str, str], language: str) -> str:
@@ -219,19 +219,17 @@ def _pick(texts: dict[str, str], language: str) -> str:
 
 
 def logo_block(cabinet_url: str, service_name: str = '') -> str:
-    """Логотип сервиса; без адреса кабинета — название текстом."""
+    """Знак сервиса и его название текстом; без адреса кабинета — только название."""
     name = html.escape(service_name or '')
     if not cabinet_url:
         return f'<span class="brand">{name}</span>'
-    base = cabinet_url.rstrip('/')
-    light = html.escape(base + LOGO_PATH, quote=True)
-    dark = html.escape(base + LOGO_DARK_PATH, quote=True)
+    mark = html.escape(cabinet_url.rstrip('/') + LOGO_PATH, quote=True)
     return (
-        f'<img src="{light}" width="154" height="31" alt="{name}" class="logo logo-light">'
-        '<!--[if !mso]><!-->'
-        f'<img src="{dark}" width="154" height="31" alt="{name}" class="logo logo-dark" '
-        'style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">'
-        '<!--<![endif]-->'
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td style="vertical-align: middle; padding-right: 10px;">'
+        f'<img src="{mark}" width="28" height="28" alt="" class="logo"></td>'
+        f'<td class="brand">{name}</td>'
+        '</tr></table>'
     )
 
 

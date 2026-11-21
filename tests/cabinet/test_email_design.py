@@ -49,11 +49,11 @@ def test_html_without_style_is_left_alone():
     assert inline_email_css('<p>plain</p>') == '<p>plain</p>'
 
 
-def test_logo_comes_from_the_cabinet_and_disappears_without_it():
+def test_logo_is_the_mark_from_the_cabinet_with_the_name_as_text():
     block = email_layout.logo_block('https://cab.example/', 'PostqVPN')
-    assert 'src="https://cab.example/brand/email-logo.png"' in block
-    assert 'src="https://cab.example/brand/email-logo-dark.png"' in block
-    assert 'alt="PostqVPN"' in block
+    assert 'src="https://cab.example/brand/email-mark.png"' in block
+    # Название — текстом рядом со знаком: его почта перекрашивает в тёмной теме.
+    assert '<td class="brand">PostqVPN</td>' in block
     assert email_layout.logo_block('', 'PostqVPN') == '<span class="brand">PostqVPN</span>'
 
 

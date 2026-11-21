@@ -308,9 +308,9 @@ async def test_preview_default_template_uses_sample_values():
     data = EmailTemplatePreviewRequest(language='ru')
     result = await preview_template('email_verification', data, _admin=None)
     assert '{verification_url}' not in result['body_html']
-    link = re.search(r'https?://[^\s"<>]+', result['body_html'])
-    assert link is not None, 'в превью нет ссылки подтверждения'
-    assert urlsplit(link.group(0)).hostname == 'example.com'
+    # Первой в письме может стоять картинка логотипа — ищем среди всех ссылок.
+    hosts = {urlsplit(u).hostname for u in re.findall(r'https?://[^\s"<>]+', result['body_html'])}
+    assert 'example.com' in hosts, 'в превью нет ссылки подтверждения'
 
 
 # ============ Обязательные плейсхолдеры проверяются при сохранении ============
