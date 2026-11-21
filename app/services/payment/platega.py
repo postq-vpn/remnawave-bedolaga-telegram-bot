@@ -187,9 +187,12 @@ class PlategaPaymentMixin:
         ``calculate_renewal_price`` — мы намеренно не замораживаем временные
         промо-скидки в повторяющемся списании.
 
-        После создания подписки выключает ``subscription.autopay_enabled``:
-        Platega-рекуррент и баланс-автосписание — взаимоисключающие движки
-        продления одной подписки.
+        Balance-autopay выключается только когда банк подтвердил привязку
+        (``_switch_off_balance_autopay`` на активации): брошенная на странице
+        банка попытка не должна молча лишать человека автопродления с
+        баланса. Пока привязка ждёт подтверждения, глобальный autopay
+        подписку пропускает (``monitoring_service._process_autopayments``) —
+        двойного продления нет и в эти 30 минут.
         """
         # Ленивый импорт: monitoring_service импортирует платёжный слой,
         # прямой импорт на уровне модуля создал бы циклическую зависимость.
@@ -205,10 +208,11 @@ class PlategaPaymentMixin:
                 validate_recurrent_setup_terms(
                     subscription, 'platega', existing.amount_kopeks, existing.charge_days, existing.interval
                 )
-            # Идемпотентный повтор обязан ТОЖЕ восстановить взаимоисключение:
-            # если balance-autopay успели включить обратно (например, пока фича
-            # была выключена), оба движка продления остались бы взведёнными.
-            if getattr(subscription, 'autopay_enabled', False):
+            # Идемпотентный повтор по уже подтверждённой привязке восстанавливает
+            # взаимоисключение: если balance-autopay успели включить обратно,
+            # оба движка продления остались бы взведёнными. Ожидающая привязка
+            # autopay не трогает — его снимет подтверждение в банке.
+            if existing.status in ('ACTIVE', 'PAST_DUE') and getattr(subscription, 'autopay_enabled', False):
                 subscription.autopay_enabled = False
                 await db.commit()
             return {
@@ -345,8 +349,10 @@ class PlategaPaymentMixin:
                 'status': winner.status,
             }
 
-        # Взаимоисключение: у подписки может быть только один движок продления.
-        subscription.autopay_enabled = False
+        # Balance-autopay НЕ снимаем здесь: привязка ещё не подтверждена, и
+        # брошенная попытка оставила бы человека без автопродления вовсе.
+        # Снимет активация (_switch_off_balance_autopay), а до неё глобальный
+        # autopay пропускает подписку с ожидающей привязкой.
         await db.commit()
 
         return {
@@ -494,6 +500,7 @@ class PlategaPaymentMixin:
 
         if status == pr.SUB_ACTIVATED:
             record.status = 'ACTIVE'
+            await _switch_off_balance_autopay(db, record.subscription_id)
             await db.commit()
             await self._notify_sbp_recurring(db, record, 'activated')
             return
@@ -591,6 +598,8 @@ class PlategaPaymentMixin:
                 record.status = 'CANCELLED'
             elif not was_cancelled:
                 record.status = 'ACTIVE'
+                # Привязка работает: продлевает банк, balance-autopay не нужен.
+                subscription.autopay_enabled = False
             record.last_charge_at = datetime.now(UTC)
             record.charges_success += 1
             record.next_charge_at = _parse_next_charge(fields.next_charge_at)
@@ -1456,3 +1465,14 @@ async def cancel_platega_recurring_if_devices_changed(db: AsyncSession, subscrip
             error=str(error),
         )
         return False
+
+
+async def _switch_off_balance_autopay(db: AsyncSession, subscription_id: int) -> None:
+    """Банк подтвердил СБП-привязку: дальше продлевает она, balance-autopay
+    выключается (взаимоисключение движков продления). До подтверждения его не
+    трогаем — см. ``create_platega_sbp_subscription``. Коммит — за вызывающим."""
+    from app.database.models import Subscription
+
+    subscription = await db.get(Subscription, subscription_id)
+    if subscription is not None and subscription.autopay_enabled:
+        subscription.autopay_enabled = False

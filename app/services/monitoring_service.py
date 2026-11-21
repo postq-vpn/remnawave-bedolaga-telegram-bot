@@ -1623,8 +1623,32 @@ class MonitoringService:
             )
             all_autopay_subscriptions = result.scalars().all()
 
+            # A live SBP binding (waiting for the bank, active, past due) renews
+            # the subscription itself: balance autopay must not charge it too.
+            # Matters while the binding waits — autopay is switched off only
+            # once the bank confirms (see create_platega_sbp_subscription).
+            sbp_bound_ids: set[int] = set()
+            if all_autopay_subscriptions:
+                from app.database.models import PlategaSubscription
+
+                sbp_bound_ids = set(
+                    (
+                        await db.execute(
+                            select(PlategaSubscription.subscription_id).where(
+                                PlategaSubscription.subscription_id.in_([s.id for s in all_autopay_subscriptions]),
+                                PlategaSubscription.status.in_(('PENDING', 'ACTIVE', 'PAST_DUE')),
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+
             autopay_subscriptions = []
             for sub in all_autopay_subscriptions:
+                if sub.id in sbp_bound_ids:
+                    logger.debug('Пропускаем autopay: подписку продлевает СБП-привязка', sub_id=sub.id)
+                    continue
                 # Суточные подписки имеют свой собственный механизм продления
                 # (DailySubscriptionService), глобальный autopay на них не распространяется
                 if sub.tariff and getattr(sub.tariff, 'is_daily', False):
@@ -2965,6 +2989,12 @@ class MonitoringService:
                     )
                     if new_status and new_status != record.status:
                         previous_status = record.status
+                        if new_status == 'ACTIVE':
+                            # Активация, о которой колбэк не дошёл: как и он,
+                            # снимаем balance-autopay (продлевает банк).
+                            from app.services.payment.platega import _switch_off_balance_autopay
+
+                            await _switch_off_balance_autopay(db, record.subscription_id)
                         await sub_crud.update_platega_subscription(db, record, status=new_status)
                         logger.info(
                             'Platega-подписка реконсилирована',

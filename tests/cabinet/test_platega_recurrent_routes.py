@@ -350,6 +350,7 @@ async def test_get_returns_full_shape_for_active_record(monkeypatch, user):
         'amount_kopeks': 19900,
         'next_charge_at': next_charge.isoformat(),
         'redirect_url': 'https://pay/existing',
+        'confirm_until': None,
     }
 
 
@@ -363,6 +364,7 @@ async def test_get_next_charge_at_none_serializes_to_none(monkeypatch, user):
         amount_kopeks=19900,
         next_charge_at=None,
         redirect_url='https://pay/pending',
+        created_at=datetime(2026, 8, 1, 12, 0, tzinfo=UTC),
     )
 
     async def fake_resolve(db, u, subscription_id):
@@ -378,6 +380,8 @@ async def test_get_next_charge_at_none_serializes_to_none(monkeypatch, user):
 
     assert result['next_charge_at'] is None
     assert result['status'] == 'PENDING'
+    # Platega gives 30 minutes to confirm in the bank; the cabinet shows it.
+    assert result['confirm_until'] == datetime(2026, 8, 1, 12, 30, tzinfo=UTC).isoformat()
 
 
 # --- cancel -----------------------------------------------------------------

@@ -12,6 +12,7 @@ most other lazy imports here) so tests can monkeypatch it directly, mirroring
 
 from __future__ import annotations
 
+from datetime import timedelta
 from uuid import UUID
 
 import structlog
@@ -177,12 +178,19 @@ async def get_platega_recurrent(
     if not record:
         return {'status': 'none'}
 
+    # Platega gives the payer 30 minutes to confirm the binding, then fails it.
+    confirm_until = (
+        (record.created_at + timedelta(minutes=30)).isoformat()
+        if record.status == 'PENDING' and getattr(record, 'created_at', None)
+        else None
+    )
     return {
         'status': record.status,
         'interval': record.interval,
         'amount_kopeks': record.amount_kopeks,
         'next_charge_at': record.next_charge_at.isoformat() if record.next_charge_at else None,
         'redirect_url': record.redirect_url,
+        'confirm_until': confirm_until,
     }
 
 

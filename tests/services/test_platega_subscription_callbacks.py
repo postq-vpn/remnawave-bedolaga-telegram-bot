@@ -81,9 +81,10 @@ async def _memory_session(monkeypatch):
         await engine.dispose()
 
 
-async def test_create_sbp_subscription_persists_and_disables_autopay(monkeypatch):
-    """create_platega_sbp_subscription: сохраняет запись, выключает autopay_enabled,
-    возвращает redirect/status из ответа Platega.
+async def test_create_sbp_subscription_persists_and_keeps_autopay_until_confirmed(monkeypatch):
+    """create_platega_sbp_subscription: сохраняет запись и возвращает redirect/status
+    из ответа Platega. Balance-autopay НЕ трогает: привязка ещё не подтверждена
+    в банке, и брошенная попытка не должна лишать человека автопродления.
     """
     from app.services.payment.platega import PlategaPaymentMixin
 
@@ -111,7 +112,7 @@ async def test_create_sbp_subscription_persists_and_disables_autopay(monkeypatch
         assert result['platega_subscription_id'] == 'tx-9'
         assert result['redirect_url'] == 'https://pay/9'
         assert result['status'] == 'PENDING'
-        assert subscription.autopay_enabled is False
+        assert subscription.autopay_enabled is True
 
         stored = await sub_crud.get_active_platega_subscription_by_subscription(db, subscription.id)
         assert stored is not None
@@ -829,9 +830,10 @@ async def test_create_sbp_subscription_rejects_zero_price(monkeypatch):
 
 
 async def test_create_sbp_short_circuit_reenforces_autopay_off(monkeypatch):
-    """Идемпотентный повтор create при живой записи: если между вызовами юзер
-    успел включить balance-autopay, short-circuit обязан заново выключить его —
-    иначе оба движка продления останутся включёнными одновременно.
+    """Идемпотентный повтор create: пока привязка ждёт банк, balance-autopay не
+    трогается; по подтверждённой (ACTIVE) — если юзер успел включить
+    balance-autopay, short-circuit заново выключает его, иначе оба движка
+    продления остались бы включёнными одновременно.
     """
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -859,13 +861,102 @@ async def test_create_sbp_short_circuit_reenforces_autopay_off(monkeypatch):
     async with _memory_session(monkeypatch) as db:
         svc = Svc()
         await svc.create_platega_sbp_subscription(db, user_id=777, subscription=subscription, tariff=tariff)
-        assert subscription.autopay_enabled is False
+        assert subscription.autopay_enabled is True  # ждём банк — не трогаем
 
-        subscription.autopay_enabled = True  # юзер включил balance-autopay между вызовами
+        await svc.create_platega_sbp_subscription(db, user_id=777, subscription=subscription, tariff=tariff)
+        assert subscription.autopay_enabled is True  # повтор при PENDING — тоже
+
+        stored = await sub_crud.get_active_platega_subscription_by_subscription(db, 1)
+        stored.status = 'ACTIVE'
+        await db.commit()
         await svc.create_platega_sbp_subscription(db, user_id=777, subscription=subscription, tariff=tariff)
 
-        assert subscription.autopay_enabled is False  # short-circuit заново выключил
+        assert subscription.autopay_enabled is False  # подтверждённая — выключил
         assert svc.platega_service.create_subscription.await_count == 1
+
+
+async def test_activation_switches_balance_autopay_off(monkeypatch):
+    """SUBSCRIPTION_ACTIVATED (банк подтвердил): продлевает теперь привязка,
+    balance-autopay выключается."""
+    from app.services.payment.platega import PlategaPaymentMixin
+
+    class Svc(PlategaPaymentMixin):
+        """Без атрибута bot."""
+
+    async with _memory_session(monkeypatch) as db:
+        db.add(
+            Subscription(
+                id=1,
+                user_id=1,
+                status='active',
+                end_date=datetime.now(UTC) + timedelta(days=5),
+                autopay_enabled=True,
+            )
+        )
+        await db.commit()
+        await sub_crud.create_platega_subscription(
+            db,
+            user_id=1,
+            subscription_id=1,
+            tariff_id=None,
+            interval=3,
+            charge_days=30,
+            amount_kopeks=19900,
+            redirect_url=None,
+            platega_subscription_id='ps-a',
+        )
+
+        await Svc().process_platega_subscription_callback(
+            db,
+            {'Status': 'SUBSCRIPTION_ACTIVATED', 'Id': 'ps-a', 'SubscriptionId': 'ps-a', 'PaymentMethod': 6},
+        )
+
+        sub = await db.get(Subscription, 1)
+        await db.refresh(sub)
+        assert sub.autopay_enabled is False
+        assert (await sub_crud.get_active_platega_subscription_by_subscription(db, 1)).status == 'ACTIVE'
+
+
+async def test_failed_attempt_leaves_balance_autopay_on(monkeypatch):
+    """Брошенная на странице банка попытка (SUBSCRIPTION_FAILED через 30 минут)
+    не трогает balance-autopay — человек не остаётся без автопродления."""
+    from app.services.payment.platega import PlategaPaymentMixin
+
+    class Svc(PlategaPaymentMixin):
+        """Без атрибута bot."""
+
+    async with _memory_session(monkeypatch) as db:
+        db.add(
+            Subscription(
+                id=1,
+                user_id=1,
+                status='active',
+                end_date=datetime.now(UTC) + timedelta(days=5),
+                autopay_enabled=True,
+            )
+        )
+        await db.commit()
+        await sub_crud.create_platega_subscription(
+            db,
+            user_id=1,
+            subscription_id=1,
+            tariff_id=None,
+            interval=3,
+            charge_days=30,
+            amount_kopeks=19900,
+            redirect_url=None,
+            platega_subscription_id='ps-f',
+        )
+
+        await Svc().process_platega_subscription_callback(
+            db,
+            {'Status': 'SUBSCRIPTION_FAILED', 'Id': 'ps-f', 'SubscriptionId': 'ps-f', 'PaymentMethod': 6},
+        )
+
+        sub = await db.get(Subscription, 1)
+        await db.refresh(sub)
+        assert sub.autopay_enabled is True
+        assert await sub_crud.get_active_platega_subscription_by_subscription(db, 1) is None
 
 
 # --- purchase_tariff_with_sbp_recurring (СБП-оформление покупки) ---
