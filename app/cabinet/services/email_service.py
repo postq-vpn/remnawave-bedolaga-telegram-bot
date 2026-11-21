@@ -296,7 +296,10 @@ class EmailService:
                 body_text = self._html_to_plain_text(body_html)
 
             part1 = MIMEText(body_text, 'plain', 'utf-8')
-            part2 = MIMEText(body_html, 'html', 'utf-8')
+            # Стили обёртки — в атрибуты style: многие клиенты режут <style>.
+            from .email_css import inline_email_css
+
+            part2 = MIMEText(inline_email_css(body_html), 'html', 'utf-8')
 
             alternative.attach(part1)
             alternative.attach(part2)

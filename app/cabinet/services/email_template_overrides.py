@@ -298,6 +298,10 @@ async def get_rendered_override(
     Returns:
         Tuple of (subject, body_html) if a usable override exists, None otherwise.
     """
+    from .email_layout import email_language
+
+    # Только ru/en: сохранённые раньше переводы на другие языки не отправляются.
+    language = email_language(language)
     # Все пути отправки проходят здесь — заодно подтягивается сохранённая
     # обёртка писем, которой синхронный рендер пользуется из кэша.
     await refresh_email_layout_cache(db)

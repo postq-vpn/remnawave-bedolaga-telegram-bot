@@ -38,6 +38,7 @@ dependencies = [
     'attrs==26.1.0',
     'pillow==13.0.0',
     'nh3==0.3.7',
+    'css-inline==0.25.0',
 ]
 
 [dependency-groups]

@@ -28,20 +28,19 @@ def test_every_webhook_type_has_email_template_in_every_language():
     assert not missing, 'WEBHOOK_* типы без email-шаблона: ' + ', '.join(missing)
 
 
-def test_webhook_email_language_fallback_to_ru():
+def test_webhook_email_goes_out_in_english_for_non_russian_languages():
+    """Письма только на ru/en: всё, что не русский, получает английский."""
     templates = EmailNotificationTemplates()
-    fallback = templates.get_template(NotificationType.WEBHOOK_SUB_EXPIRED, 'xx', {})
-    ru = templates.get_template(NotificationType.WEBHOOK_SUB_EXPIRED, 'ru', {})
-    assert fallback['subject'] == ru['subject']
+    en = templates.get_template(NotificationType.WEBHOOK_SUB_EXPIRED, 'en', {})
+    for language in ('xx', 'zh', 'ua', 'fa'):
+        assert templates.get_template(NotificationType.WEBHOOK_SUB_EXPIRED, language, {}) == en, language
 
 
-def test_webhook_email_localized_subjects_differ_from_ru():
-    """zh/ua — не заглушки: тема отличается от русской."""
+def test_webhook_email_english_subject_differs_from_ru():
     templates = EmailNotificationTemplates()
     ru = templates.get_template(NotificationType.WEBHOOK_SUB_EXPIRED, 'ru', {})
-    for language in ('en', 'zh', 'ua'):
-        localized = templates.get_template(NotificationType.WEBHOOK_SUB_EXPIRED, language, {})
-        assert localized['subject'] != ru['subject'], language
+    en = templates.get_template(NotificationType.WEBHOOK_SUB_EXPIRED, 'en', {})
+    assert en['subject'] != ru['subject']
 
 
 def test_device_name_substitution_and_placeholder_hygiene():

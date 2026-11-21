@@ -60,7 +60,7 @@ def test_default_layout_is_the_previous_wrapper():
     assert body.lower().count('<!doctype') == 1
     assert '<p>hi</p>' in body
     assert 'class="container"' in body
-    assert 'This is an automated message' in body
+    assert 'because you have a' in body
     assert 'Unsubscribe' not in body
 
     with_unsub = EmailNotificationTemplates()._get_base_template('<p>hi</p>', 'en', 'https://x/unsub?a=1&b=2')
@@ -82,7 +82,7 @@ def test_custom_layout_applies_to_default_templates():
     body = template['body_html']
     assert body.startswith('<!DOCTYPE html><html><body><div id="brand">')
     assert 'Пробная подписка скоро закончится' in body
-    assert 'Это автоматическое сообщение' in body
+    assert 'Вы получили это письмо' in body
     assert '{content}' not in body and '{footer_text}' not in body
 
 
@@ -90,7 +90,7 @@ def test_custom_layout_falls_back_to_ru_for_other_languages():
     set_cached_email_layouts({'ru': CUSTOM})
     en = EmailNotificationTemplates().get_template(NotificationType.WINBACK_TRIAL_ENDING, 'en', {})['body_html']
     assert en.startswith('<!DOCTYPE html><html><body><div id="brand">')
-    assert 'This is an automated message' in en
+    assert 'because you have a' in en
 
     set_cached_email_layouts({'ru': CUSTOM, 'en': OTHER})
     en = EmailNotificationTemplates().get_template(NotificationType.WINBACK_TRIAL_ENDING, 'en', {})['body_html']
@@ -231,7 +231,7 @@ async def test_layout_preview_puts_sample_letter_inside_custom_layout():
     assert body.startswith('<!DOCTYPE html><html><body><div id="brand">')
     assert SAMPLE_CONTEXTS[EMAIL_LAYOUT_TYPE]['content'] in body
     assert '{content}' not in body and '{footer_text}' not in body
-    assert 'Это автоматическое сообщение' in body
+    assert 'Вы получили это письмо' in body
 
     default_preview = await preview_template(
         EMAIL_LAYOUT_TYPE, EmailTemplatePreviewRequest(language='en', subject='', body_html=''), _admin=None

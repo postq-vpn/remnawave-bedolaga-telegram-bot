@@ -131,7 +131,8 @@ def test_email_change_code_uses_unified_template(captured_send):
     assert ok
     body = captured_send['body']
     assert '123456' in body
-    assert captured_send['subject'] == 'کد تایید تغییر ایمیل'
+    # Письма только на ru/en: персидский получатель получает английское письмо.
+    assert captured_send['subject'] == 'Email change verification code'
     _assert_single_document(body, 'email_change_code')
 
 

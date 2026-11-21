@@ -111,7 +111,8 @@ def test_verification_template_placeholder_survives_roundtrip():
     )
     assert html.escape(real_url) in rendered
     assert '{verification_url}' not in rendered
-    assert 'example.com' not in rendered
+    # Примерная ссылка превью не утекла в письмо (адрес кабинета в логотипе — настоящий).
+    assert 'example.com/verify' not in rendered
 
 
 # ============ substitute_context_vars ============

@@ -1,4 +1,4 @@
-"""Render every built-in email and editor metadata in every supported language."""
+"""Render every built-in email and editor metadata in every email language (ru, en)."""
 
 import re
 
@@ -13,7 +13,12 @@ from app.cabinet.routes.admin_email_templates import (
     _get_default_template,
     _placeholder_context,
 )
-from app.cabinet.services.email_layout import DEFAULT_EMAIL_LAYOUT, extract_content_fragment, render_email_layout
+from app.cabinet.services.email_layout import (
+    DEFAULT_EMAIL_LAYOUT,
+    email_language,
+    extract_content_fragment,
+    render_email_layout,
+)
 
 
 @pytest.mark.parametrize('language', AVAILABLE_LANGUAGES)
@@ -30,9 +35,6 @@ def test_real_email_body_and_editor_metadata_are_localized(meta, language):
     if language != 'ru':
         ru = _get_default_template(meta['type'], 'ru', context)
         assert content != extract_content_fragment(ru['body_html']), f'{meta["type"]} falls back to RU'
-    if language == 'fa':
-        assert re.search(r'[\u0600-\u06ff]', rendered['subject'])
-        assert '<html lang="fa" dir="rtl">' in rendered['body_html']
     editor = _get_default_template(meta['type'], language, _placeholder_context(meta['type']))
     english = _get_default_template(meta['type'], 'en', _placeholder_context(meta['type']))
     assert sorted(re.findall(r'href="([^"]+)"', editor['body_html'])) == sorted(
@@ -40,22 +42,39 @@ def test_real_email_body_and_editor_metadata_are_localized(meta, language):
     )
 
 
-def test_custom_layout_is_not_rewritten_for_rtl():
+def test_emails_go_out_only_in_russian_and_english():
+    """ru — русским, пустой язык — дефолтом бота (ru), остальные — английским."""
+    assert AVAILABLE_LANGUAGES == ['ru', 'en']
+    assert [email_language(code) for code in ('ru', 'RU', '', None, 'en', 'ua', 'zh', 'fa')] == [
+        'ru',
+        'ru',
+        'ru',
+        'ru',
+        'en',
+        'en',
+        'en',
+        'en',
+    ]
+    for code in ('ua', 'zh', 'fa'):
+        foreign = _get_default_template('subscription_expired', code, {})
+        english = _get_default_template('subscription_expired', 'en', {})
+        assert foreign == english
+    assert 'dir="rtl"' not in render_email_layout(DEFAULT_EMAIL_LAYOUT, 'fa', {'content': 'x'})
+
+
+def test_custom_layout_is_used_as_is():
     custom = '<html lang="en" dir="ltr"><body>{content}</body></html>'
     assert (
-        render_email_layout(custom, 'fa', {'content': '<p>Operator content</p>'}, mark_content=False)
+        render_email_layout(custom, 'en', {'content': '<p>Operator content</p>'}, mark_content=False)
         == '<html lang="en" dir="ltr"><body><p>Operator content</p></body></html>'
     )
-    assert render_email_layout(DEFAULT_EMAIL_LAYOUT, 'fa', {'content': 'متن'}).count('dir="rtl"') == 1
-    assert set(LAYOUT_TEMPLATE_META['label']) == set(AVAILABLE_LANGUAGES)
+    assert set(AVAILABLE_LANGUAGES) <= set(LAYOUT_TEMPLATE_META['label'])
 
 
 @pytest.mark.parametrize(
     ('language', 'plan', 'level', 'bonus'),
     [
-        ('fa', 'طرح:', 'سطح شبکه شما:', 'پاداش شما:'),
-        ('ua', 'Тариф:', 'Рівень вашої мережі:', 'Ваш бонус:'),
-        ('zh', '套餐', '您的推荐网络层级：', '您的奖励：'),
+        ('en', 'Plan', 'Network level', 'Your bonus'),
     ],
 )
 def test_optional_nested_blocks_use_recipient_language(language, plan, level, bonus):
@@ -77,36 +96,6 @@ def test_optional_nested_blocks_use_recipient_language(language, plan, level, bo
         'promo_offer', language, {'message_html': '<em>Operator custom</em>', 'valid_hours': 24, 'discount_percent': 0}
     )
     assert '<em>Operator custom</em>' in promo['body_html']
-
-
-@pytest.mark.parametrize(
-    'notification_type,date_field',
-    [
-        ('subscription_activated', 'expires_at'),
-        ('subscription_expiring', 'expires_at'),
-        ('subscription_renewed', 'new_expires_at'),
-        ('autopay_success', 'new_expires_at'),
-        ('grace_access_granted', 'until'),
-        ('winback_discount', 'expires_at'),
-    ],
-)
-def test_fa_dates_keep_the_original_value_in_ltr_isolation(notification_type, date_field):
-    context = {**SAMPLE_CONTEXTS[notification_type], date_field: '2030-12-31 23:59'}
-    rendered = _get_default_template(notification_type, 'fa', context)
-    assert '<bdi dir="ltr">2030-12-31 23:59</bdi>' in rendered['body_html']
-
-
-def test_fa_auth_code_and_visible_url_are_ltr_without_changing_values():
-    code = _get_default_template('email_change_code', 'fa', {'code': '123456', 'expire_minutes': 10})
-    assert '<p dir="ltr" style=' in code['body_html']
-    assert '>123456</p>' in code['body_html']
-    verification = _get_default_template(
-        'email_verification',
-        'fa',
-        {'verification_url': 'https://cabinet.example/verify?token=sample', 'expire_hours': 1},
-    )
-    assert '<bdi dir="ltr">https://cabinet.example/verify?token=sample</bdi>' in verification['body_html']
-    assert 'href="https://cabinet.example/verify?token=sample"' in verification['body_html']
 
 
 @pytest.mark.parametrize('language', ['ru', 'en', 'ua', 'zh', 'fa'])

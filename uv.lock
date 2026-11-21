@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.14.*"
 
 [[package]]
@@ -540,6 +540,28 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/10/bf/8d6ebc7dded797bd0f0160d52188021211f011a2b164ef0ae1dac4587465/cryptography-50.0.2-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:7a8701d6b584d76e909e3d305b7d126b41439876a5aaf76cddc67fc230eafa2e", size = 4897738, upload-time = "2026-09-30T15:29:43.106Z" },
     { url = "https://files.pythonhosted.org/packages/d4/aa/f3f6e0de7e6253b8baa8b2d8fb9d50924fa75cee3d4624bd4bc1208ee923/cryptography-50.0.2-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:ce47f66801c20ec6c6632453bb5960fe38939e9306970b48b3a5a26de7745d94", size = 5058280, upload-time = "2026-09-30T15:29:44.827Z" },
     { url = "https://files.pythonhosted.org/packages/f6/b6/a1faf3a27ae9405fb34b1713cc73b2d8a26b04d5c561578fa2e6ef3e5bb9/cryptography-50.0.2-cp39-abi3-win_amd64.whl", hash = "sha256:4e81d95e5bafc2d6e34e4bed780e53e4d5b9a2f928573428aa4d35fbec1eb0de", size = 3854095, upload-time = "2026-09-30T15:29:46.782Z" },
+]
+
+[[package]]
+name = "css-inline"
+version = "0.25.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/44/cdf1cc6cf8eb6bf36e7e2ed4fe36c1706c0e33bae0c159b6d2753e16bc5d/css_inline-0.25.0.tar.gz", hash = "sha256:a9ca86ade1dd8395a26658d751351be41036b8f1dcb2b0118ad07052380536b7", size = 121835, upload-time = "2026-11-17T21:39:00.486Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f2/a1/0c7467fd5b2b71f56c419a3c5981f794b55e9f3817feeac97ce6dfb4a001/css_inline-0.25.0-cp310-abi3-macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64.whl", hash = "sha256:e25129793051ac908099b2e8a72bb33e27cee4c3f5ae55f4611184e4745bdcdd", size = 3698241, upload-time = "2026-11-17T21:38:35.693Z" },
+    { url = "https://files.pythonhosted.org/packages/22/70/35363cea705a5f99c2790ef21ef0e0707336b2f6ee31ea25054a7d029fc1/css_inline-0.25.0-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:349dd3959229023b5b549f45934373638b2f6575ffa3f445a9c91d0bbfa297e6", size = 1906067, upload-time = "2026-11-17T21:38:37.56Z" },
+    { url = "https://files.pythonhosted.org/packages/dc/f7/977d31071843b2ca5ea88d540dc086162492946790d09789205c85acc6fd/css_inline-0.25.0-cp310-abi3-manylinux2010_i686.manylinux_2_12_i686.whl", hash = "sha256:a6b39434c11a6863d0cc149982d1f34df2ff4bbb511ac1428b74d9b1b9c96ec4", size = 1927793, upload-time = "2026-11-17T21:38:39.066Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/c4/9b69834ea136102225c6a0d349f4447139832a578eeb67aed22acc102270/css_inline-0.25.0-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:31f3a4179f0178d95d96afbfd26e3d3dd086c5160c19fd171e1f2db3f8088dff", size = 2014173, upload-time = "2026-11-17T21:38:40.483Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/f9/fe64fd4e22394d8ff505e837031aea2e83ba94093db342edc99b6d8c9ea9/css_inline-0.25.0-cp310-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:c7a1082fe65b0d3e2723fc4ee7ee33b600fb58c2e0283256df97c248a75dac1c", size = 1948260, upload-time = "2026-11-17T21:38:41.904Z" },
+    { url = "https://files.pythonhosted.org/packages/dc/4a/178cc064cf055d4fa396b3696d6a09fcb496fa210651b467c4803002e3c3/css_inline-0.25.0-cp310-abi3-manylinux_2_24_armv7l.whl", hash = "sha256:307c4ae0c4384a7c4f8e0de01c9ff2e5b1b90cdaf7ce7882cda2663687960d93", size = 1816527, upload-time = "2026-11-17T21:38:43.384Z" },
+    { url = "https://files.pythonhosted.org/packages/16/09/e768f93e7b9707b0d5f664b5fdcfae9189e80a14daf3a3ee7a51582d498d/css_inline-0.25.0-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:dce1aca8f6ff50db82b8a1b12544fc682c0bfbeffd85ac8d1a2db8dcf3a848d0", size = 2139136, upload-time = "2026-11-17T21:38:44.745Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/bf/939af99355c23a4a7efa52d01c3a9817a9890ed7f6037442542528d19c98/css_inline-0.25.0-cp310-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:2349d3c058b7285a3b1e7938a82bf7eb79af256252ca5b9f513b9bb0404fc2b2", size = 2046031, upload-time = "2026-11-17T21:38:46.188Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/51/b54b44a7f494a9061eca59d4b3f76b8503ce8323c0c52c788184f5ac5ebb/css_inline-0.25.0-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:6c4b9c18aa61c48d5701a65b523944819cedeb37bffd3816914567eafe66398f", size = 2250145, upload-time = "2026-11-17T21:38:47.601Z" },
+    { url = "https://files.pythonhosted.org/packages/39/16/b1c5fa3ab1b11949b1878dd8a4a7135af5ea91b117a2ad8315f7090e3e2c/css_inline-0.25.0-cp310-abi3-pyemscripten_2025_0_wasm32.whl", hash = "sha256:2d1c1c0538874810b5d8d2afafd2a60fe5cd35d979232fa414a1c99ff7be9068", size = 583307, upload-time = "2026-11-17T21:38:48.806Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/87/9b1453afdef482de8c715c1bbfc30061ddd4250e0a05735906a9b100d646/css_inline-0.25.0-cp310-abi3-pyemscripten_2026_0_wasm32.whl", hash = "sha256:4820a07b07196e4d4ae7e81e25f17c99a4ea8de0855eab4400d1c078958f0245", size = 579644, upload-time = "2026-11-17T21:38:50.11Z" },
+    { url = "https://files.pythonhosted.org/packages/10/24/4b2a05463ebea66b27e85a32db53a12b503db23a171c2b4a12de2398e90e/css_inline-0.25.0-cp310-abi3-win32.whl", hash = "sha256:8bc20aa942b69c6dc99029506638b603d0eaaea639580977a640f7f7ffde07eb", size = 1667916, upload-time = "2026-11-17T21:38:51.376Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/e8/36cb98455ea015cbb319d051f68e212d72a7f75202594f115c2b5a202d1f/css_inline-0.25.0-cp310-abi3-win_amd64.whl", hash = "sha256:2a2798acb87a512b103f8451d2cf8083e5e00089e31bef187f64c37850a74922", size = 1978463, upload-time = "2026-11-17T21:38:53.379Z" },
+    { url = "https://files.pythonhosted.org/packages/95/65/c24c12a2d1f3d9fdc918a51b0151b12c00eaf0fdec4b16f306d495bd24c8/css_inline-0.25.0-cp310-abi3-win_arm64.whl", hash = "sha256:4166f279fcd8ef2da591afa7bef510f5deedf141f658802453e04fa7402d3ce0", size = 1902696, upload-time = "2026-11-17T21:38:55.09Z" },
 ]
 
 [[package]]
@@ -1458,6 +1480,7 @@ dependencies = [
     { name = "attrs" },
     { name = "bcrypt" },
     { name = "cryptography" },
+    { name = "css-inline" },
     { name = "fastapi", extra = ["standard"] },
     { name = "greenlet" },
     { name = "httpx", extra = ["socks"] },
@@ -1502,6 +1525,7 @@ requires-dist = [
     { name = "attrs", specifier = "==26.1.0" },
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "cryptography", specifier = "==50.0.2" },
+    { name = "css-inline", specifier = "==0.25.0" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.141.1" },
     { name = "greenlet", specifier = "==3.5.6" },
     { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
