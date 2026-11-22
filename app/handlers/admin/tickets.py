@@ -23,7 +23,7 @@ from app.states import AdminTicketStates
 from app.utils.cache import RateLimitCache
 from app.utils.chat_scope import callback_from_group
 from app.utils.photo_message import safe_edit_or_resend
-from app.utils.ticket_media import get_ticket_media, ticket_media_chunks
+from app.utils.ticket_media import get_ticket_media, send_ticket_attachments, send_ticket_media
 from app.utils.ticket_text import (
     TICKET_MESSAGE_MAX_LENGTH,
     TICKET_PAGE_MAX_LEN,
@@ -1255,23 +1255,25 @@ async def notify_user_about_ticket_reply(bot: Bot, ticket: Ticket, reply_text: s
             ]
         )
 
-        # Прикладываем фото или видео из последнего ответа админа.
+        # Прикладываем фото, видео или файл из последнего ответа админа.
         last_message = await TicketMessageCRUD.get_last_message(db, ticket.id)
         if (
             last_message
             and last_message.has_media
-            and last_message.media_type in {'photo', 'video'}
+            and last_message.media_type in {'photo', 'video', 'document'}
             and last_message.is_from_admin
         ):
             caption = base_text
             try:
-                sender = bot.send_video if last_message.media_type == 'video' else bot.send_photo
-                await sender(
-                    chat_id=chat_id,
-                    **{last_message.media_type: last_message.media_file_id},
+                await send_ticket_media(
+                    bot,
+                    chat_id,
+                    last_message.media_type,
+                    last_message.media_file_id,
                     caption=caption,
                     reply_markup=keyboard,
                 )
+                logger.info('Ticket reply notification sent to user', ticket_id=ticket.id, chat_id=chat_id)
                 return
             except TelegramBadRequest as media_error:
                 logger.error(
@@ -1349,28 +1351,7 @@ def register_handlers(dp: Dispatcher):
         if not attachments:
             await callback.answer(texts.t('NO_ATTACHMENTS', 'Вложений нет.'), show_alert=True)
             return
-        from aiogram.types import InputMediaDocument, InputMediaPhoto, InputMediaVideo
-
-        chunks = ticket_media_chunks(attachments)
-        last_group_message = None
-        for chunk in chunks:
-            media = [
-                {'photo': InputMediaPhoto, 'video': InputMediaVideo, 'document': InputMediaDocument}[m['type']](
-                    media=m['file_id']
-                )
-                for m in chunk
-            ]
-            try:
-                if len(media) == 1:
-                    item = media[0]
-                    sender = getattr(callback.message.bot, f'send_{item.type.value}')
-                    messages = [await sender(chat_id=callback.from_user.id, **{item.type: item.media})]
-                else:
-                    messages = await callback.message.bot.send_media_group(chat_id=callback.from_user.id, media=media)
-                if messages:
-                    last_group_message = messages[-1]
-            except Exception:
-                pass
+        last_group_message = await send_ticket_attachments(callback.message.bot, callback.from_user.id, attachments)
         # После отправки добавим кнопку удалить под последним сообщением группы
         if last_group_message:
             try:

@@ -26,7 +26,7 @@ from app.utils.cache import RateLimitCache, cache, cache_key
 from app.utils.formatters import format_username_link
 from app.utils.miniapp_buttons import build_admin_ticket_cabinet_button
 from app.utils.photo_message import edit_or_answer_photo, safe_edit_or_resend
-from app.utils.ticket_media import get_ticket_media, ticket_media_chunks
+from app.utils.ticket_media import get_ticket_media, send_ticket_attachments as deliver_ticket_attachments
 from app.utils.ticket_text import (
     TICKET_MESSAGE_MAX_LENGTH,
     TICKET_PAGE_MAX_LEN,
@@ -625,29 +625,7 @@ async def send_ticket_attachments(callback: types.CallbackQuery, db_user: User, 
         await callback.answer(texts.t('NO_ATTACHMENTS', 'Вложений нет.'), show_alert=True)
         return
 
-    # Telegram ограничивает media group до 10 элементов. Отправим чанками.
-    from aiogram.types import InputMediaDocument, InputMediaPhoto, InputMediaVideo
-
-    chunks = ticket_media_chunks(attachments)
-    last_group_message = None
-    for chunk in chunks:
-        media = [
-            {'photo': InputMediaPhoto, 'video': InputMediaVideo, 'document': InputMediaDocument}[m['type']](
-                media=m['file_id']
-            )
-            for m in chunk
-        ]
-        try:
-            if len(media) == 1:
-                item = media[0]
-                sender = getattr(callback.message.bot, f'send_{item.type.value}')
-                messages = [await sender(chat_id=callback.from_user.id, **{item.type: item.media})]
-            else:
-                messages = await callback.message.bot.send_media_group(chat_id=callback.from_user.id, media=media)
-            if messages:
-                last_group_message = messages[-1]
-        except Exception:
-            pass
+    last_group_message = await deliver_ticket_attachments(callback.message.bot, callback.from_user.id, attachments)
     if last_group_message:
         try:
             kb = types.InlineKeyboardMarkup(
