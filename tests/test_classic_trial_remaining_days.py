@@ -149,7 +149,7 @@ async def test_classic_purchase_persists_expiry_balance_and_conversion(
 ):
     from sqlalchemy import func, select
 
-    from app.database.models import Base, Subscription, SubscriptionConversion, Transaction, User
+    from app.database.models import Base, SentNotification, Subscription, SubscriptionConversion, Transaction, User
     from app.services import subscription_purchase_service as m
     from tests.fixtures.postgres_db import postgres_session
 
@@ -175,6 +175,9 @@ async def test_classic_purchase_persists_expiry_balance_and_conversion(
         )
         db.add_all([user, subscription])
         await db.commit()
+        # Отметка о напоминании из прошлого периода — после продления должна исчезнуть.
+        db.add(SentNotification(user_id=42, subscription_id=7, notification_type='expiring', days_before=3))
+        await db.commit()
         context = SimpleNamespace(user=user, subscription=subscription)
         pricing = SimpleNamespace(
             final_total=1000,
@@ -197,3 +200,4 @@ async def test_classic_purchase_persists_expiry_balance_and_conversion(
         transactions = (await db.scalars(select(Transaction))).all()
         assert len(transactions) == 1
         assert transactions[0].amount_kopeks == -1000
+        assert await db.scalar(select(func.count()).select_from(SentNotification)) == 0

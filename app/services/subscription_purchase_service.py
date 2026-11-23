@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import PERIOD_PRICES, settings
+from app.database.crud.notification import clear_notifications
 from app.database.crud.server_squad import (
     add_user_to_servers,
     get_available_server_squads,
@@ -1141,6 +1142,10 @@ class MiniAppSubscriptionPurchaseService:
                 subscription.traffic_used_gb = 0.0
 
                 await db.flush()
+                # Подписка продлевается в той же строке, поэтому отметки о напоминаниях
+                # прошлого периода надо стереть — как делает extend_subscription, иначе
+                # «подписка истекает через N дней» в новом периоде не придёт.
+                await clear_notifications(db, subscription.id, commit=False)
             else:
                 subscription = await create_paid_subscription(
                     db=db,
