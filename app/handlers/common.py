@@ -28,8 +28,25 @@ async def handle_delete_ban_notification(
 
 async def handle_webhook_notification_close(
     callback: types.CallbackQuery,
+    db_user: User | None = None,
+    db: AsyncSession | None = None,
 ):
-    """Удаляет webhook-уведомление при нажатии кнопки Закрыть."""
+    """Закрывает webhook-уведомление и показывает на его месте главное меню.
+
+    Уведомление — фото с логотипом: show_main_menu удаляет его и присылает свежее
+    меню, а если удалить нельзя (Telegram запрещает deleteMessage в личке для
+    сообщений старше 48 часов) — редактирует уведомление в меню на месте.
+    Раньше удаление молча падало, и уведомление оставалось висеть.
+    """
+    if db_user is not None and db is not None:
+        try:
+            from app.handlers.menu import show_main_menu
+
+            await show_main_menu(callback, db_user, db)
+            return
+        except Exception as e:
+            logger.warning('Не удалось открыть главное меню по кнопке Закрыть', e=e)
+
     try:
         await callback.answer()
     except Exception:
