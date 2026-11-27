@@ -112,6 +112,7 @@ class NotificationCategory(StrEnum):
     PROMO = 'promo'  # Промокоды, кампании, промогруппы
     PARTNERS = 'partners'  # Партнёрки, выводы, админ-действия
     TICKETS = 'tickets'  # Тикеты (уже существует)
+    GRACE = 'grace'  # Выдача и завершение grace-доступа
 
 
 logger = structlog.get_logger(__name__)
@@ -160,6 +161,9 @@ class AdminNotificationService:
             NotificationCategory.PROMO: getattr(settings, 'ADMIN_NOTIFICATIONS_PROMO_TOPIC_ID', None),
             NotificationCategory.PARTNERS: getattr(settings, 'ADMIN_NOTIFICATIONS_PARTNERS_TOPIC_ID', None),
             NotificationCategory.TICKETS: self.ticket_topic_id,
+            # Раньше grace шёл в «Продления» — без своего топика там и остаётся.
+            NotificationCategory.GRACE: getattr(settings, 'ADMIN_NOTIFICATIONS_GRACE_TOPIC_ID', None)
+            or getattr(settings, 'ADMIN_NOTIFICATIONS_RENEWALS_TOPIC_ID', None),
         }
 
         # Per-category enabled flags (default True — backwards compatible)
@@ -1961,7 +1965,7 @@ class AdminNotificationService:
         completion_reason: str | None = None,
         last_error: str | None = None,
     ) -> bool:
-        """Выдача или завершение grace-доступа — в чат админов, категория «Продления».
+        """Выдача или завершение grace-доступа — в чат админов, своя категория GRACE.
 
         Владелец: «выдача втухлую — это тупо»: админ обязан видеть, кому, почему и до
         какого срока бот временно оставил доступ к тому, что оператор назвал в
@@ -2033,7 +2037,7 @@ class AdminNotificationService:
                     v9=format_local_datetime(datetime.now(UTC), '%d.%m.%Y %H:%M:%S'),
                 )
 
-            return await self._send_message(message, category=NotificationCategory.RENEWALS)
+            return await self._send_message(message, category=NotificationCategory.GRACE)
         except Exception as error:
             logger.error('Ошибка отправки уведомления о grace-доступе', error=error)
             return False

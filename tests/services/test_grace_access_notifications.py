@@ -130,7 +130,7 @@ async def test_granted_tells_admins_who_why_and_until_when(lab):
 
     assert lab.admin.await_count == 1
     text = lab.admin.await_args.args[0]
-    assert lab.admin.await_args.kwargs['category'] is NotificationCategory.RENEWALS
+    assert lab.admin.await_args.kwargs['category'] is NotificationCategory.GRACE
     assert 'GRACE-ДОСТУП ВЫДАН' in text
     assert 'Иван' in text and '1001' in text and 'ivan' in text
     assert 'Стартовый' in text

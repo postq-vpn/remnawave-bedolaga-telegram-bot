@@ -149,6 +149,8 @@ class Settings(BaseSettings):
     ADMIN_NOTIFICATIONS_ERRORS_TOPIC_ID: int | None = None  # Ошибки бота
     ADMIN_NOTIFICATIONS_PROMO_TOPIC_ID: int | None = None  # Промокоды, кампании, промогруппы
     ADMIN_NOTIFICATIONS_PARTNERS_TOPIC_ID: int | None = None  # Партнёрки, выводы, админ-действия
+    # Выдача и завершение grace-доступа (если не задано — топик продлений, затем общий)
+    ADMIN_NOTIFICATIONS_GRACE_TOPIC_ID: int | None = None
 
     # Per-category enable/disable (default True for backwards compatibility)
     ADMIN_NOTIFICATIONS_PURCHASES_ENABLED: bool = True

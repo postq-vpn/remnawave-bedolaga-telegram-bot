@@ -424,6 +424,7 @@ class BotConfigurationService:
         'ADMIN_NOTIFICATIONS_ERRORS_TOPIC_ID': 'ADMIN_NOTIFICATIONS',
         'ADMIN_NOTIFICATIONS_PROMO_TOPIC_ID': 'ADMIN_NOTIFICATIONS',
         'ADMIN_NOTIFICATIONS_PARTNERS_TOPIC_ID': 'ADMIN_NOTIFICATIONS',
+        'ADMIN_NOTIFICATIONS_GRACE_TOPIC_ID': 'ADMIN_NOTIFICATIONS',
         'ADMIN_REPORTS_ENABLED': 'ADMIN_REPORTS',
         'ADMIN_REPORTS_CHAT_ID': 'ADMIN_REPORTS',
         'ADMIN_REPORTS_TOPIC_ID': 'ADMIN_REPORTS',
@@ -923,7 +924,7 @@ class BotConfigurationService:
             'description': 'Сообщать админам в чат уведомлений о каждой выдаче и завершении grace-доступа: кому, почему, до какого срока и чем закончилось.',
             'format': 'Булево значение.',
             'example': 'true',
-            'dependencies': 'ADMIN_NOTIFICATIONS_ENABLED, ADMIN_NOTIFICATIONS_RENEWALS_ENABLED',
+            'dependencies': 'ADMIN_NOTIFICATIONS_ENABLED, ADMIN_NOTIFICATIONS_GRACE_TOPIC_ID',
         },
         'GRACE_ACCESS_ALLOWED_SERVICES': {
             'description': 'Что остаётся доступным во время grace — так, как это увидит человек в сообщении бота и в письме: «Telegram», «Telegram и личный кабинет», «сайт проекта». Сам доступ определяют ноды сквада grace, бот только сообщает.',
